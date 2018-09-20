@@ -8,19 +8,27 @@ mocha qTest reporter that uses tag _@qTest[testCaseId]_ to map mocha to test cas
 * you want to prepare Test Suite manually before tests execution
 
 **qTest**
+
 Test Suite  [testSuiteId]
+
   Test Run -> Test Case [testCaseId]
+
   Test Run -> Test Case [testCaseId]
+
   ...
   
 **Mocha Test**
+
 describe('Component')
+
   describe('Feature')
+
     it('test or test step @qTest[testCaseId]')
     
 ## How it works
 
 Before test execution is started reporter gets Test Runs of Test Suite.
+
 Having Test Runs reporter can build mapping like: { testCaseId: testRunId } 
 
 Reporter uploads mocha test (it('')) result after step is completed (failed or passed).
@@ -43,11 +51,13 @@ using like this
 
 ## Environment variables
 QTEST_SUITE_ID - testSuiteId. **Required**
+
 QTEST_BUILD_URL - url to your build system or any other url. Optional
 
 ## FAQ
 
 Q: What is testCaseId, testRunId, testSuiteId
+
 A: this is object id that can be found in URL. It is **not** what you see in UI like (TC-XXX, TR-XXX, TS-XXX)
 
 
