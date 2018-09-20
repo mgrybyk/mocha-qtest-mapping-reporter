@@ -7,31 +7,28 @@ mocha qTest reporter that uses tag _@qTest[testCaseId]_ to map mocha to test cas
 * you want to map mocha test(s) to test case in qTest
 * you want to prepare Test Suite manually before tests execution
 
-**qTest**
-
+**qTest Structure**
+```
 Test Suite  [testSuiteId]
-
   Test Run -> Test Case [testCaseId]
-
   Test Run -> Test Case [testCaseId]
-
   ...
-  
+```
+
 **Mocha Test**
-
+```
 describe('Component')
-
   describe('Feature')
-
     it('test or test step @qTest[testCaseId]')
-    
+```
+
 ## How it works
 
 Before test execution is started reporter gets Test Runs of Test Suite.
 
 Having Test Runs reporter can build mapping like: { testCaseId: testRunId } 
 
-Reporter uploads mocha test (it('')) result after step is completed (failed or passed).
+If test has string like @qTest[123456] in name, reporter uploads mocha test result once step is completed (failed or passed).
 
 ## Configuration
 
