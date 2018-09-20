@@ -2,8 +2,11 @@ const mocha = require('mocha')
 const path = require('path')
 const QTestClient = require('./qTestClient')
 
-const testSuiteId = process.env.QTEST_SUITE_ID
+let testSuiteId = process.env.QTEST_SUITE_ID
 const buildUrl = process.env.QTEST_BUILD_URL
+
+const testCycleId = process.env.QTEST_CYCLE_ID
+const testSuiteName = process.env.QTEST_SUITE_NAME
 
 /**
  * Initialize a new `qTest` reporter.
@@ -14,8 +17,9 @@ const buildUrl = process.env.QTEST_BUILD_URL
  */
 
 function qTest (runner, options = {}) {
-  if (!testSuiteId) {
-    return console.warn('qTestReporter: disabled because QTEST_SUITE_ID is not set.')
+  if (!testSuiteId && (!testCycleId || !testSuiteName)) {
+    return console.warn("qTestReporter: results won't be published.",
+      'Please set either existing testSuiteId or existing testCycleId in combination with testSuiteName to be created.')
   }
 
   const reporterOptions = options.reporterOptions || {}
@@ -37,9 +41,14 @@ function qTest (runner, options = {}) {
   log.TEST_PAD = 5
   log.HOOK_PAD = 4
 
-  console.log('qTestReporter: getting test runs of test suite', testSuiteId)
-  const mapping = qTestClient.getSuiteTestRuns(testSuiteId)
-  console.log('qTestReporter: test runs found', Object.keys(mapping).length, '\n')
+  let mapping = null
+  if (testSuiteId) {
+    console.log('qTestReporter: getting test runs of test suite', testSuiteId)
+    mapping = qTestClient.getSuiteTestRuns(testSuiteId)
+    console.log('qTestReporter: test runs found', Object.keys(mapping).length, '\n')
+  } else {
+    testSuiteId = qTestClient.createTestSuite(testCycleId, testSuiteName)
+  }
 
   mocha.reporters.Base.call(this, runner)
 
@@ -54,19 +63,26 @@ function qTest (runner, options = {}) {
     log(log.TEST_PAD, `> ${test.title}`)
 
     const testCaseId = getQTestId(test.title)
-    if (!testCaseId || !mapping[testCaseId]) return
+    if (!testCaseId) {
+      return console.log('qTestReporter: test is not mapped to qTest')
+    }
+
+    if (mapping) {
+      if (!mapping[testCaseId]) {
+        return console.log("qTestReporter: testSuite doesn't include ")
+      }
+      test.qTest = { testRun: mapping[testCaseId], testCase: { id: testCaseId } }
+    } else {
+      qTestClient.addTestRunToSuite(testSuiteId)
+    }
 
     const idsLog = `testRunId: '${mapping[testCaseId].id}', testCaseId: '${testCaseId}'`
-    test.executionLog = {
+    test.qTest.executionLog = {
       name: mapping[testCaseId].name,
       build_url: buildUrl,
       automation_content: idsLog,
       note: `${test.title} \n${idsLog}`,
-      exe_start_date: new Date().toISOString(),
-      test_step_logs: [{
-        description: test.title,
-        expected_result: ''
-      }]
+      exe_start_date: new Date().toISOString()
     }
   })
 
@@ -74,11 +90,9 @@ function qTest (runner, options = {}) {
     log(log.TEST_PAD, `\x1b[1m\x1b[32m✓ PASSED`, '\x1b[0m', durationMsg(test.duration))
     log(1)
 
-    const testCaseId = getQTestId(test.title)
-    if (!testCaseId || !mapping[testCaseId]) return
+    if (!test.qTest) return
 
-    test.executionLog.status = qTestConfig.statePassed || 'PASS'
-    test.executionLog.test_step_logs[0].status = test.executionLog.status
+    test.qTest.executionLog.status = qTestConfig.statePassed || 'PASS'
   })
 
   runner.on('fail', (test, err) => {
@@ -86,21 +100,15 @@ function qTest (runner, options = {}) {
     log(log.TEST_PAD + 2, '\x1b[31m', err.stack, '\x1b[0m')
     log(1)
 
-    const testCaseId = getQTestId(test.title)
-    if (!testCaseId || !mapping[testCaseId]) return
+    if (!test.qTest) return
 
-    test.executionLog.status = qTestConfig.stateFailed || 'FAIL'
-    test.executionLog.test_step_logs[0] = {
-      ...test.executionLog.test_step_logs[0],
-      actual_result: err.stack,
-      status: test.executionLog.status
-      // TODO
-      // attachments: [{
-      //   name: 'screenshot.png',
-      //   content_type: 'image/png',
-      //   data: 'base64 string of Sample.docx'
-      // }]
-    }
+    test.qTest.executionLog.status = qTestConfig.stateFailed || 'FAIL'
+    test.qTest.executionLog.note += '\n\r\n' + err.stack
+    // test.qTest.executionLog.attachments: [{
+    //   name: 'screenshot.png',
+    //   content_type: 'image/png',
+    //   data: 'base64 string of Sample.docx'
+    // }]
   })
 
   runner.on('pending', (test) => {
@@ -109,12 +117,11 @@ function qTest (runner, options = {}) {
   })
 
   runner.on('test end', (test) => {
-    const testCaseId = getQTestId(test.title)
-    if (!testCaseId || !mapping[testCaseId] || !test.executionLog) return
+    if (!test.qTest) return
 
-    test.executionLog.exe_end_date = new Date().toISOString()
+    test.qTest.executionLog.exe_end_date = new Date().toISOString()
 
-    qTestClient.postLog(mapping[testCaseId].id, test.executionLog)
+    qTestClient.postLog(test.qTest.testRun.id, test.qTest.executionLog)
   })
 
   runner.on('suite', function (suite) {
