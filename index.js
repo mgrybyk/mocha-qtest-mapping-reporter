@@ -5,7 +5,8 @@ const QTestClient = require('./qTestClient')
 let testSuiteId = process.env.QTEST_SUITE_ID
 const buildUrl = process.env.QTEST_BUILD_URL
 
-const testCycleId = process.env.QTEST_CYCLE_ID
+const parentType = process.env.QTEST_PARENT_TYPE
+const parentId = process.env.QTEST_PARENT_ID
 const testSuiteName = process.env.QTEST_SUITE_NAME
 
 /**
@@ -17,7 +18,7 @@ const testSuiteName = process.env.QTEST_SUITE_NAME
  */
 
 function qTest (runner, options = {}) {
-  if (!testSuiteId && (!testCycleId || !testSuiteName)) {
+  if (!testSuiteId && (!parentId || !testSuiteName || !parentType)) {
     return console.warn("qTestReporter: results won't be published.",
       'Please set either existing testSuiteId or existing testCycleId in combination with testSuiteName to be created.')
   }
@@ -47,7 +48,9 @@ function qTest (runner, options = {}) {
     mapping = qTestClient.getSuiteTestRuns(testSuiteId)
     console.log('qTestReporter: test runs found', Object.keys(mapping).length, '\n')
   } else {
-    testSuiteId = qTestClient.createTestSuite(testCycleId, testSuiteName)
+    console.log('qTestReporter: creating test suite', testSuiteName)
+    testSuiteId = qTestClient.createTestSuite(parentType, parentId, testSuiteName)
+    console.log('qTestReporter: test suite created', testSuiteId)
   }
 
   mocha.reporters.Base.call(this, runner)
@@ -67,18 +70,20 @@ function qTest (runner, options = {}) {
       return console.log('qTestReporter: test is not mapped to qTest')
     }
 
-    if (mapping) {
-      if (!mapping[testCaseId]) {
-        return console.log("qTestReporter: testSuite doesn't include ")
-      }
+    if (mapping && !mapping[testCaseId]) {
       test.qTest = { testRun: mapping[testCaseId], testCase: { id: testCaseId } }
     } else {
-      qTestClient.addTestRunToSuite(testSuiteId)
+      const testRun = qTestClient.createTestRun(testSuiteId, testCaseId)
+      if (!testRun) return // console.log("qTestReporter: testSuite doesn't include ")
+      test.qTest = {
+        testRun: testRun,
+        testCase: { id: testCaseId }
+      }
     }
 
-    const idsLog = `testRunId: '${mapping[testCaseId].id}', testCaseId: '${testCaseId}'`
+    const idsLog = `testRunId: '${test.qTest.testRun.id}', testCaseId: '${testCaseId}'`
     test.qTest.executionLog = {
-      name: mapping[testCaseId].name,
+      name: test.qTest.testRun.name,
       build_url: buildUrl,
       automation_content: idsLog,
       note: `${test.title} \n${idsLog}`,
@@ -153,8 +158,8 @@ function qTest (runner, options = {}) {
 
   runner.on('end', () => {
     log(0, '\nTests execution finished.', durationMsg(new Date() - startDate))
-    console.log('\nResults submitted to qTest',
-      `\x1b[4mhttps://${qTestConfig.host}/p/${qTestConfig.projectId}/portal/project#tab=testexecution&object=2&id=${testSuiteId}\x1b[0m`)
+    console.log('\nResults submitted to qTest:',
+      `\x1b[4m\nhttps://${qTestConfig.host}/p/${qTestConfig.projectId}/portal/project#tab=testexecution&object=2&id=${testSuiteId}\x1b[0m`)
   })
 }
 
