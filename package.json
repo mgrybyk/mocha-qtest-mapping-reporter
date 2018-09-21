@@ -1,6 +1,6 @@
 {
-  "name": "mocha-qtest-mapping-reporter",
-  "version": "0.0.1",
+  "name": "mocha-qtest-mapping-reporter22",
+  "version": "0.0.2",
   "description": "mocha qTest reporter that uses tag to map to test design id",
   "main": "index.js",
   "scripts": {
@@ -23,6 +23,6 @@
   "homepage": "https://github.com/mgrybyk/mocha-qtest-mapping-reporter#readme",
   "dependencies": {
     "mocha": "^5.2.0",
-    "sync-request": "^6.0.0"
+    "request-promise-native": "^1.0.5"
   }
 }

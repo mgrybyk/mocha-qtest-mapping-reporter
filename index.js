@@ -43,14 +43,19 @@ function qTest (runner, options = {}) {
   log.HOOK_PAD = 4
 
   let mapping = null
+  let promise
   if (testSuiteId) {
     console.log('qTestReporter: getting test runs of test suite', testSuiteId)
-    mapping = qTestClient.getSuiteTestRuns(testSuiteId)
-    console.log('qTestReporter: test runs found', Object.keys(mapping).length, '\n')
+    promise = qTestClient.getSuiteTestRuns(testSuiteId).then(result => {
+      mapping = result
+      console.log('qTestReporter: test runs found', Object.keys(mapping).length, '\n')
+    })
   } else {
     console.log('qTestReporter: creating test suite', testSuiteName)
-    testSuiteId = qTestClient.createTestSuite(parentType, parentId, testSuiteName)
-    console.log('qTestReporter: test suite created', testSuiteId)
+    promise = qTestClient.createTestSuite(parentType, parentId, testSuiteName).then(result => {
+      testSuiteId = result
+      console.log('qTestReporter: test suite created', testSuiteId)
+    })
   }
 
   mocha.reporters.Base.call(this, runner)
@@ -62,7 +67,7 @@ function qTest (runner, options = {}) {
     log(0, '\nTests execution started...\n')
   })
 
-  runner.on('test', (test) => {
+  runner.on('test', async (test) => {
     log(log.TEST_PAD, `> ${test.title}`)
 
     const testCaseId = getQTestId(test.title)
@@ -70,34 +75,43 @@ function qTest (runner, options = {}) {
       return console.log('qTestReporter: test is not mapped to qTest')
     }
 
-    if (mapping && !mapping[testCaseId]) {
-      test.qTest = { testRun: mapping[testCaseId], testCase: { id: testCaseId } }
-    } else {
-      const testRun = qTestClient.createTestRun(testSuiteId, testCaseId)
-      if (!testRun) return // console.log("qTestReporter: testSuite doesn't include ")
-      test.qTest = {
-        testRun: testRun,
-        testCase: { id: testCaseId }
-      }
-    }
+    test.qTestPromise = new Promise(async resolve => {
+      await promise
 
-    const idsLog = `testRunId: '${test.qTest.testRun.id}', testCaseId: '${testCaseId}'`
-    test.qTest.executionLog = {
-      name: test.qTest.testRun.name,
-      build_url: buildUrl,
-      automation_content: idsLog,
-      note: `${test.title} \n${idsLog}`,
-      exe_start_date: new Date().toISOString()
-    }
+      if (mapping && mapping[testCaseId]) {
+        test.qTest = { testRun: mapping[testCaseId], testCase: { id: testCaseId } }
+      } else {
+        const testRun = await qTestClient.createTestRun(testSuiteId, testCaseId)
+        if (!testRun) return resolve() // console.log("qTestReporter: testSuite doesn't include ")
+        test.qTest = {
+          testRun: testRun,
+          testCase: { id: testCaseId }
+        }
+      }
+
+      const idsLog = `testRunId: '${test.qTest.testRun.id}', testCaseId: '${testCaseId}'`
+      test.qTest.executionLog = {
+        name: test.qTest.testRun.name,
+        build_url: buildUrl,
+        automation_content: idsLog,
+        note: `${test.title} \n${idsLog}`,
+        exe_start_date: new Date().toISOString()
+      }
+
+      resolve()
+    })
   })
 
   runner.on('pass', (test) => {
     log(log.TEST_PAD, `\x1b[1m\x1b[32m✓ PASSED`, '\x1b[0m', durationMsg(test.duration))
     log(1)
 
-    if (!test.qTest) return
+    if (!test.qTestPromise) return
+    test.qTestPromise.then(() => {
+      if (!test.qTest) return
 
-    test.qTest.executionLog.status = qTestConfig.statePassed || 'PASS'
+      test.qTest.executionLog.status = qTestConfig.statePassed || 'PASS'
+    })
   })
 
   runner.on('fail', (test, err) => {
@@ -105,15 +119,18 @@ function qTest (runner, options = {}) {
     log(log.TEST_PAD + 2, '\x1b[31m', err.stack, '\x1b[0m')
     log(1)
 
-    if (!test.qTest) return
+    if (!test.qTestPromise) return
+    test.qTestPromise.then(() => {
+      if (!test.qTest) return
 
-    test.qTest.executionLog.status = qTestConfig.stateFailed || 'FAIL'
-    test.qTest.executionLog.note += '\n\r\n' + err.stack
-    // test.qTest.executionLog.attachments: [{
-    //   name: 'screenshot.png',
-    //   content_type: 'image/png',
-    //   data: 'base64 string of Sample.docx'
-    // }]
+      test.qTest.executionLog.status = qTestConfig.stateFailed || 'FAIL'
+      test.qTest.executionLog.note += '\n\r\n' + err.stack
+      // test.qTest.executionLog.attachments: [{
+      //   name: 'screenshot.png',
+      //   content_type: 'image/png',
+      //   data: 'base64 string of Sample.docx'
+      // }]
+    })
   })
 
   runner.on('pending', (test) => {
@@ -122,11 +139,15 @@ function qTest (runner, options = {}) {
   })
 
   runner.on('test end', (test) => {
-    if (!test.qTest) return
+    if (!test.qTestPromise) return
 
-    test.qTest.executionLog.exe_end_date = new Date().toISOString()
+    test.qTestPromise.then(async () => {
+      if (!test.qTest) return
 
-    qTestClient.postLog(test.qTest.testRun.id, test.qTest.executionLog)
+      test.qTest.executionLog.exe_end_date = new Date().toISOString()
+
+      await qTestClient.postLog(test.qTest.testRun.id, test.qTest.executionLog)
+    })
   })
 
   runner.on('suite', function (suite) {
@@ -158,6 +179,9 @@ function qTest (runner, options = {}) {
 
   runner.on('end', () => {
     log(0, '\nTests execution finished.', durationMsg(new Date() - startDate))
+  })
+
+  process.on('exit', () => {
     console.log('\nResults submitted to qTest:',
       `\x1b[4m\nhttps://${qTestConfig.host}/p/${qTestConfig.projectId}/portal/project#tab=testexecution&object=2&id=${testSuiteId}\x1b[0m`)
   })

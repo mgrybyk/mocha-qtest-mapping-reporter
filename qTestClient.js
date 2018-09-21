@@ -1,4 +1,4 @@
-const request = require('sync-request')
+const request = require('request-promise-native')
 
 class qTestClient {
   constructor (host, bearerToken, projectId) {
@@ -10,26 +10,28 @@ class qTestClient {
         'Host': host,
         'Authorization': `bearer ${bearerToken}`,
         'Cache-Control': 'no-cache'
-      }
+      },
+      resolveWithFullResponse: true
     }
   }
 
-  getSuiteTestRuns (testSuite) {
+  async getSuiteTestRuns (testSuite) {
     const url = `${this.projectUrl}/test-runs`
 
     // request
     const errorMessage = 'qTestReporter: failed to getSuiteTestRuns.'
     let res
     try {
-      res = request('GET', url, {
-        ...this.options,
+      res = await request(Object.assign({}, this.options, {
+        method: 'GET',
+        uri: url,
         qs: {
           parentId: testSuite,
           parentType: 'test-suite',
           page: 1,
           pageSize: 999
         }
-      })
+      }))
     } catch (err) {
       console.error(errorMessage)
       throw err
@@ -47,17 +49,19 @@ class qTestClient {
     return mapping
   }
 
-  getTestCase (testCaseId) {
+  async getTestCase (testCaseId) {
     const url = `${this.projectUrl}/test-cases/${testCaseId}`
 
     // request
     const errorMessage = 'qTestReporter: failed to getTestCase.'
     let res
     try {
-      res = request('GET', url, { ...this.options })
+      res = await request(Object.assign({}, this.options, {
+        method: 'GET',
+        uri: url
+      }))
     } catch (err) {
-      console.error(errorMessage)
-      throw err
+      return console.error(errorMessage, testCaseId)
     }
 
     // parse response body
@@ -72,92 +76,88 @@ class qTestClient {
     return resBody
   }
 
-  postLog (testRunId, body) {
+  async postLog (testRunId, body) {
     const url = `${this.projectUrl}/test-runs/${testRunId}/auto-test-logs`
 
     // request
     const errorMessage = 'qTestReporter: Failed to post test log.'
     let res
     try {
-      res = request('POST', url, {
-        ...this.options,
-        json: body
-      })
+      res = await request(Object.assign({}, this.options, {
+        method: 'POST',
+        uri: url,
+        json: true,
+        body
+      }))
     } catch (err) {
-      console.error(errorMessage, body)
-      throw err
+      return console.error(errorMessage, body)
     }
 
     // parse response body
-    try {
-      const resBody = parseBody(res)
-      if (!resBody.id) {
-        console.error(errorMessage, '\nERROR:', resBody.message, body)
-      }
-    } catch (err) { }
+    if (!res.body || !res.body.id) {
+      console.error(errorMessage, '\nERROR:', res.body, body)
+    }
   }
 
-  createTestSuite (parentType, parentId, name) {
+  async createTestSuite (parentType, parentId, name) {
     const url = `${this.projectUrl}/test-suites`
 
     // request
     const errorMessage = 'qTestReporter: Failed to create test suite.'
     let res
     try {
-      res = request('POST', url, {
-        ...this.options,
-        json: { parentId, parentType, name },
+      res = await request(Object.assign({}, this.options, {
+        method: 'POST',
+        uri: url,
+        json: true,
+        body: { parentId, parentType, name },
         qs: { parentId, parentType }
-      })
+      }))
     } catch (err) {
       console.error(errorMessage)
       throw err
     }
 
     // parse response body
-    const resBody = parseBody(res)
-    if (!resBody.id) {
-      console.error(errorMessage, '\nERROR:', resBody.message)
+    if (!res.body || !res.body.id) {
+      console.error(errorMessage, '\nERROR:', res.body)
       throw new Error(errorMessage)
     }
-    return resBody.id
+    return res.body.id
   }
 
-  createTestRun (testSuiteId, testCaseId) {
-    const testCase = this.getTestCase(testCaseId)
+  async createTestRun (testSuiteId, testCaseId) {
+    const testCase = await this.getTestCase(testCaseId)
     if (!testCase) return
 
     const url = `${this.projectUrl}/test-runs`
 
     // request
-    const errorMessage = 'qTestReporter: Failed to craete test run.'
+    const errorMessage = 'qTestReporter: Failed to create test run.'
     let res
     try {
-      res = request('POST', url, {
-        ...this.options,
-        json: {
+      res = await request(Object.assign({}, this.options, {
+        method: 'POST',
+        uri: url,
+        json: true,
+        body: {
           parentId: testSuiteId,
           parentType: 'test-suite',
           name: testCase.name,
           test_case: { id: testCaseId }
         },
         qs: { parentId: testSuiteId, parentType: 'test-suite' }
-      })
+      }))
     } catch (err) {
-      console.error(errorMessage)
-      throw err
+      return console.error(errorMessage)
     }
 
     // parse response body
-    const resBody = parseBody(res)
-    if (!resBody.id) {
-      console.error(errorMessage, resBody.message)
-      throw new Error(errorMessage)
+    if (!res.body || !res.body.id) {
+      console.error(errorMessage, res.body)
+      return null
     }
-    return {
-      id: resBody.id,
-      name: resBody.name
-    }
+    return res.body
   }
 }
 
