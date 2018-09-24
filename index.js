@@ -23,36 +23,24 @@ function qTest (runner, options = {}) {
       'Please set either existing testSuiteId or existing testCycleId in combination with testSuiteName to be created.')
   }
 
-  const reporterOptions = options.reporterOptions || {}
-  let qTestConfig
-
-  if (reporterOptions.configFile) {
-    qTestConfig = require(path.join(process.cwd(), reporterOptions.configFile))
-  } else {
-    qTestConfig = reporterOptions.configOptions || {}
-  }
-
-  if (!qTestConfig.host || !qTestConfig.bearerToken || !qTestConfig.projectId) {
-    throw new Error('qTestReporter: host, bearerToken, projectId are required options.')
-  }
-
+  const qTestConfig = getQTestConfig(options)
   const qTestClient = new QTestClient(qTestConfig.host, qTestConfig.bearerToken, qTestConfig.projectId)
 
-  const log = qTestConfig.enableLogs ? (pad = 0, ...args) => console.log((pad ? '|' : '') + (' '.repeat(pad)), ...args) : () => { }
-  log.TEST_PAD = 5
-  log.HOOK_PAD = 4
+  const log = setupLogger(qTestConfig)
 
   let mapping = null
-  let promise
+  let getSuite
   if (testSuiteId) {
+    // use existing suite
     console.log('qTestReporter: getting test runs of test suite', testSuiteId)
-    promise = qTestClient.getSuiteTestRuns(testSuiteId).then(result => {
+    getSuite = qTestClient.getSuiteTestRuns(testSuiteId).then(result => {
       mapping = result
       console.log('qTestReporter: test runs found', Object.keys(mapping).length, '\n')
     })
   } else {
+    // create new suite
     console.log('qTestReporter: creating test suite', testSuiteName)
-    promise = qTestClient.createTestSuite(parentType, parentId, testSuiteName).then(result => {
+    getSuite = qTestClient.createTestSuite(parentType, parentId, testSuiteName).then(result => {
       testSuiteId = result
       console.log('qTestReporter: test suite created', testSuiteId)
     })
@@ -70,19 +58,23 @@ function qTest (runner, options = {}) {
   runner.on('test', async (test) => {
     log(log.TEST_PAD, `> ${test.title}`)
 
+    // get qTestCaseId from test title
     const testCaseId = getQTestId(test.title)
     if (!testCaseId) {
       return console.log('qTestReporter: test is not mapped to qTest')
     }
 
     test.qTestPromise = new Promise(async resolve => {
-      await promise
+      // wait for test suite id
+      await getSuite
 
       if (mapping && mapping[testCaseId]) {
+        // using existing test run
         test.qTest = { testRun: mapping[testCaseId], testCase: { id: testCaseId } }
       } else {
+        // creating new test run
         const testRun = await qTestClient.createTestRun(testSuiteId, testCaseId)
-        if (!testRun) return resolve() // console.log("qTestReporter: testSuite doesn't include ")
+        if (!testRun) return resolve()
         test.qTest = {
           testRun: testRun,
           testCase: { id: testCaseId }
@@ -194,6 +186,33 @@ function getQTestId (title) {
 
 function durationMsg (duration) {
   return `(${duration}ms)`
+}
+
+function setupLogger (qTestConfig) {
+  const log = qTestConfig.enableLogs ? (pad = 0, ...args) => {
+    console.log((pad ? '|' : '') + (' '.repeat(pad)), ...args)
+  } : () => { }
+  log.TEST_PAD = 5
+  log.HOOK_PAD = 4
+
+  return log
+}
+
+function getQTestConfig (options) {
+  const reporterOptions = options.reporterOptions || {}
+  let qTestConfig
+
+  if (reporterOptions.configFile) {
+    qTestConfig = require(path.join(process.cwd(), reporterOptions.configFile))
+  } else {
+    qTestConfig = reporterOptions.configOptions || {}
+  }
+
+  if (!qTestConfig.host || !qTestConfig.bearerToken || !qTestConfig.projectId) {
+    throw new Error('qTestReporter: host, bearerToken, projectId are required options.')
+  }
+
+  return qTestConfig
 }
 
 /**
