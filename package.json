@@ -1,7 +1,7 @@
 {
   "name": "mocha-qtest-mapping-reporter",
-  "version": "1.0.0",
-  "description": "mocha qTest reporter that uses tag to map to test design id",
+  "version": "1.0.1",
+  "description": "Map your automated test to qTest Test Case with tag",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

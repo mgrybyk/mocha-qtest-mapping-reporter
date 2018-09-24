@@ -9,6 +9,8 @@ const parentType = process.env.QTEST_PARENT_TYPE
 const parentId = process.env.QTEST_PARENT_ID
 const testSuiteName = process.env.QTEST_SUITE_NAME
 
+let printReportUrl = false
+
 /**
  * Initialize a new `qTest` reporter.
  *
@@ -35,6 +37,7 @@ function qTest (runner, options = {}) {
     console.log('qTestReporter: getting test runs of test suite', testSuiteId)
     getSuite = qTestClient.getSuiteTestRuns(testSuiteId).then(result => {
       mapping = result
+      printReportUrl = true
       console.log('qTestReporter: test runs found', Object.keys(mapping).length, '\n')
     })
   } else {
@@ -42,6 +45,7 @@ function qTest (runner, options = {}) {
     console.log('qTestReporter: creating test suite', testSuiteName)
     getSuite = qTestClient.createTestSuite(parentType, parentId, testSuiteName).then(result => {
       testSuiteId = result
+      printReportUrl = true
       console.log('qTestReporter: test suite created', testSuiteId)
     })
   }
@@ -173,8 +177,10 @@ function qTest (runner, options = {}) {
     log(0, '\nTests execution finished.', durationMsg(new Date() - startDate))
   })
 
-  process.on('exit', () => {
-    console.log('\nResults submitted to qTest:',
+  !process.listeners('exit').some(evt => {
+    return evt.name === 'mochaQTestMappingReporter'
+  }) && process.on('exit', function mochaQTestMappingReporter () {
+    printReportUrl && console.log('\nResults submitted to qTest:',
       `\x1b[4m\nhttps://${qTestConfig.host}/p/${qTestConfig.projectId}/portal/project#tab=testexecution&object=2&id=${testSuiteId}\x1b[0m`)
   })
 }
