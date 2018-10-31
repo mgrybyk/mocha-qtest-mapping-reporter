@@ -28,9 +28,9 @@ describe('Component')
 Before test execution is started reporter either gets Test Runs of Test Suite or creates empty Test Suite.
 
 Having Test Runs reporter can build mapping like: { testCaseId: testRunId }  
-Test Run is created automatically if Test Run for a Test Case is missing in Test Suite
+Test Run may be created automatically (by default) if Test Run for a Test Case is missing in Test Suite
 
-Assuming test has string like @qTest[123456] in name, reporter uploads mocha test result once step is completed (failed or passed).
+Assuming test has string like @qTest[123456] in name, reporter uploads mocha test results in the end.
 
 ## Configuration
 

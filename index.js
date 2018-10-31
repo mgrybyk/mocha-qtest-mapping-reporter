@@ -22,36 +22,39 @@ let printReportUrl = false
  */
 
 function qTest (runner, options = {}) {
-  if (!testSuiteId && (!parentId || !testSuiteName || !parentType)) {
-    return console.warn("qTestReporter: results won't be published.",
-      'Please set either existing testSuiteId or existing testCycleId in combination with testSuiteName to be created.')
-  }
-
+  let getSuite, mapping, qTestClient
   const qTestConfig = getQTestConfig(options)
-  const qTestClient = new QTestClient(qTestConfig.host, qTestConfig.bearerToken, qTestConfig.projectId)
+
+  if (!testSuiteId && (!parentId || !testSuiteName || !parentType)) {
+    console.warn("qTestReporter: results won't be published.",
+      'Please set either existing testSuiteId or existing testCycleId in combination with testSuiteName to be created.')
+  } else {
+    if (!qTestConfig.host || !qTestConfig.bearerToken || !qTestConfig.projectId) {
+      throw new Error('qTestReporter: host, bearerToken, projectId are required options.')
+    }
+
+    qTestClient = new QTestClient(qTestConfig.host, qTestConfig.bearerToken, qTestConfig.projectId)
+
+    if (testSuiteId) {
+      // use existing suite
+      console.log('qTestReporter: getting test runs of test suite', testSuiteId)
+      getSuite = qTestClient.getSuiteTestRuns(testSuiteId).then(result => {
+        mapping = result
+        printReportUrl = true
+        console.log('qTestReporter: test runs found', Object.keys(result).length, '\n')
+      })
+    } else {
+      // create new suite
+      console.log('qTestReporter: creating test suite', testSuiteName)
+      getSuite = qTestClient.createTestSuite(parentType, parentId, testSuiteName).then(result => {
+        testSuiteId = result
+        printReportUrl = true
+        console.log('qTestReporter: test suite created', testSuiteId)
+      })
+    }
+  }
 
   const log = setupLogger(qTestConfig)
-
-  let mapping = null
-  let getSuite
-  if (testSuiteId) {
-    // use existing suite
-    console.log('qTestReporter: getting test runs of test suite', testSuiteId)
-    getSuite = qTestClient.getSuiteTestRuns(testSuiteId).then(result => {
-      mapping = result
-      printReportUrl = true
-      console.log('qTestReporter: test runs found', Object.keys(mapping).length, '\n')
-    })
-  } else {
-    // create new suite
-    console.log('qTestReporter: creating test suite', testSuiteName)
-    getSuite = qTestClient.createTestSuite(parentType, parentId, testSuiteName).then(result => {
-      testSuiteId = result
-      printReportUrl = true
-      console.log('qTestReporter: test suite created', testSuiteId)
-    })
-  }
-
   mocha.reporters.Base.call(this, runner)
 
   let startDate = new Date()
@@ -71,6 +74,7 @@ function qTest (runner, options = {}) {
     if (!testCaseId) {
       return console.log('qTestReporter: test is not mapped to qTest')
     }
+    if (!qTestClient) return
 
     test.qTest = {
       executionLog: {
@@ -87,7 +91,7 @@ function qTest (runner, options = {}) {
     log(log.TEST_PAD, `\x1b[1m\x1b[32m✓ PASSED`, '\x1b[0m', durationMsg(test.duration))
     log(1)
 
-    if (!test.qTest) return
+    if (!qTestClient || !test.qTest) return
     test.qTest.executionLog.status = qTestConfig.statePassed || 'PASS'
   })
 
@@ -96,7 +100,7 @@ function qTest (runner, options = {}) {
     log(log.TEST_PAD + 2, '\x1b[31m', err.stack, '\x1b[0m')
     log(1)
 
-    if (!test.qTest) return
+    if (!qTestClient || !test.qTest) return
 
     test.qTest.executionLog.status = qTestConfig.stateFailed || 'FAIL'
     test.qTest.executionLog.note = err.stack
@@ -113,7 +117,7 @@ function qTest (runner, options = {}) {
   })
 
   runner.on('test end', (test) => {
-    if (!test.qTest) return
+    if (!qTestClient || !test.qTest) return
     test.qTest.executionLog.exe_end_date = new Date().toISOString()
   })
 
@@ -145,19 +149,25 @@ function qTest (runner, options = {}) {
   })
 
   runner.on('end', async () => {
-    log(0, '\nTests execution finished. Publishing results to qTest.', durationMsg(new Date() - startDate))
+    log(0, '\nTests execution finished.', durationMsg(new Date() - startDate))
+
+    if (!qTestClient) return
 
     const failedState = qTestConfig.stateFailed || 'FAIL'
 
     // submit failed tests in the end to avoid marking failed tests as passed
     testResults.sort((a, b) => a.executionLog.status === failedState ? 1 : -1)
 
-    await getSuite
+    try {
+      await getSuite
+    } catch (err) {
+      return console.error('qTestReporter: unable to publish results.')
+    }
+
+    console.log('qTestReporter: publishing results...')
 
     for (let i = 0; i < testResults.length; i++) {
       const { executionLog, testCaseId, testTitle } = testResults[i]
-
-      console.log(testResults[i])
 
       let testRun
       if (mapping && mapping[testCaseId]) {
@@ -195,7 +205,7 @@ function getQTestId (title) {
   return match ? match[1] : null
 }
 
-function durationMsg (duration) {
+function durationMsg (duration = '?') {
   return `(${duration}ms)`
 }
 
@@ -219,11 +229,7 @@ function getQTestConfig (options) {
     qTestConfig = reporterOptions.configOptions || {}
   }
 
-  if (!qTestConfig.host || !qTestConfig.bearerToken || !qTestConfig.projectId) {
-    throw new Error('qTestReporter: host, bearerToken, projectId are required options.')
-  }
-
-  return qTestConfig
+  return qTestConfig || {}
 }
 
 /**
