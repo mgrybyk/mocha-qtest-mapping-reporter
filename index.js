@@ -22,7 +22,8 @@ let printReportUrl = false
  */
 
 function qTest (runner, options = {}) {
-  let getSuite, mapping, qTestClient
+  let getSuite, qTestClient
+  let mapping = []
   const qTestConfig = getQTestConfig(options)
 
   if (!testSuiteId && (!parentId || !testSuiteName || !parentType)) {
@@ -170,12 +171,13 @@ function qTest (runner, options = {}) {
       const { executionLog, testCaseId, testTitle } = testResults[i]
 
       let testRun
-      if (mapping && mapping[testCaseId]) {
+      if (mapping[testCaseId]) {
         // using existing test run
         testRun = mapping[testCaseId]
       } else if (createTestRuns) {
         // creating new test run
         testRun = await qTestClient.createTestRun(testSuiteId, testCaseId)
+        mapping[testCaseId] = testRun
       }
 
       if (testRun) {
@@ -185,7 +187,7 @@ function qTest (runner, options = {}) {
           {
             name: testRun.name,
             automation_content: idsLog,
-            note: `${testTitle} \n${idsLog} \n\r\n ${executionLog.note}`
+            note: `${testTitle} \n${idsLog}` + (executionLog.note ? `\n\r\n ${executionLog.note}` : '')
           })
 
         await qTestClient.postLog(testRun.id, logBody)

@@ -90,7 +90,7 @@ class qTestClient {
         body
       }))
     } catch (err) {
-      return console.error(errorMessage, body)
+      return console.error(errorMessage, err.message, body)
     }
 
     // parse response body
