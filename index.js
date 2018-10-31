@@ -180,12 +180,13 @@ function qTest (runner, options = {}) {
 
       if (testRun) {
         const idsLog = `testRunId: '${testRun.id}', testCaseId: '${testCaseId}'`
-        const logBody = {
-          ...executionLog,
-          name: testRun.name,
-          automation_content: idsLog,
-          note: `${testTitle} \n${idsLog} \n\r\n ${executionLog.note}`
-        }
+        const logBody = Object.assign({},
+          executionLog,
+          {
+            name: testRun.name,
+            automation_content: idsLog,
+            note: `${testTitle} \n${idsLog} \n\r\n ${executionLog.note}`
+          })
 
         await qTestClient.postLog(testRun.id, logBody)
       }
