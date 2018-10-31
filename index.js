@@ -9,6 +9,8 @@ const parentType = process.env.QTEST_PARENT_TYPE
 const parentId = process.env.QTEST_PARENT_ID
 const testSuiteName = process.env.QTEST_SUITE_NAME
 
+const createTestRuns = process.env.QTEST_CREATE_TEST_RUNS || true
+
 let printReportUrl = false
 
 /**
@@ -54,6 +56,8 @@ function qTest (runner, options = {}) {
 
   let startDate = new Date()
 
+  const testResults = []
+
   runner.on('start', () => {
     startDate = new Date()
     log(0, '\nTests execution started...\n')
@@ -68,46 +72,23 @@ function qTest (runner, options = {}) {
       return console.log('qTestReporter: test is not mapped to qTest')
     }
 
-    test.qTestPromise = new Promise(async resolve => {
-      // wait for test suite id
-      await getSuite
-
-      if (mapping && mapping[testCaseId]) {
-        // using existing test run
-        test.qTest = { testRun: mapping[testCaseId], testCase: { id: testCaseId } }
-      } else {
-        // creating new test run
-        const testRun = await qTestClient.createTestRun(testSuiteId, testCaseId)
-        if (!testRun) return resolve()
-        test.qTest = {
-          testRun: testRun,
-          testCase: { id: testCaseId }
-        }
-      }
-
-      const idsLog = `testRunId: '${test.qTest.testRun.id}', testCaseId: '${testCaseId}'`
-      test.qTest.executionLog = {
-        name: test.qTest.testRun.name,
+    test.qTest = {
+      executionLog: {
         build_url: buildUrl,
-        automation_content: idsLog,
-        note: `${test.title} \n${idsLog}`,
         exe_start_date: new Date().toISOString()
-      }
-
-      resolve()
-    })
+      },
+      testCaseId,
+      testTitle: test.title
+    }
+    testResults.push(test.qTest)
   })
 
   runner.on('pass', (test) => {
     log(log.TEST_PAD, `\x1b[1m\x1b[32m✓ PASSED`, '\x1b[0m', durationMsg(test.duration))
     log(1)
 
-    if (!test.qTestPromise) return
-    test.qTestPromise.then(() => {
-      if (!test.qTest) return
-
-      test.qTest.executionLog.status = qTestConfig.statePassed || 'PASS'
-    })
+    if (!test.qTest) return
+    test.qTest.executionLog.status = qTestConfig.statePassed || 'PASS'
   })
 
   runner.on('fail', (test, err) => {
@@ -115,18 +96,15 @@ function qTest (runner, options = {}) {
     log(log.TEST_PAD + 2, '\x1b[31m', err.stack, '\x1b[0m')
     log(1)
 
-    if (!test.qTestPromise) return
-    test.qTestPromise.then(() => {
-      if (!test.qTest) return
+    if (!test.qTest) return
 
-      test.qTest.executionLog.status = qTestConfig.stateFailed || 'FAIL'
-      test.qTest.executionLog.note += '\n\r\n' + err.stack
-      // test.qTest.executionLog.attachments: [{
-      //   name: 'screenshot.png',
-      //   content_type: 'image/png',
-      //   data: 'base64 string of Sample.docx'
-      // }]
-    })
+    test.qTest.executionLog.status = qTestConfig.stateFailed || 'FAIL'
+    test.qTest.executionLog.note = err.stack
+    // test.qTest.executionLog.attachments: [{
+    //   name: 'screenshot.png',
+    //   content_type: 'image/png',
+    //   data: 'base64 string of Sample.docx'
+    // }]
   })
 
   runner.on('pending', (test) => {
@@ -135,15 +113,8 @@ function qTest (runner, options = {}) {
   })
 
   runner.on('test end', (test) => {
-    if (!test.qTestPromise) return
-
-    test.qTestPromise.then(async () => {
-      if (!test.qTest) return
-
-      test.qTest.executionLog.exe_end_date = new Date().toISOString()
-
-      await qTestClient.postLog(test.qTest.testRun.id, test.qTest.executionLog)
-    })
+    if (!test.qTest) return
+    test.qTest.executionLog.exe_end_date = new Date().toISOString()
   })
 
   runner.on('suite', function (suite) {
@@ -173,8 +144,42 @@ function qTest (runner, options = {}) {
     log(log.HOOK_PAD, `~ DONE`, durationMsg(hook.duration))
   })
 
-  runner.on('end', () => {
-    log(0, '\nTests execution finished.', durationMsg(new Date() - startDate))
+  runner.on('end', async () => {
+    log(0, '\nTests execution finished. Publishing results to qTest.', durationMsg(new Date() - startDate))
+
+    const failedState = qTestConfig.stateFailed || 'FAIL'
+
+    // submit failed tests in the end to avoid marking failed tests as passed
+    testResults.sort((a, b) => a.executionLog.status === failedState ? 1 : -1)
+
+    await getSuite
+
+    for (let i = 0; i < testResults.length; i++) {
+      const { executionLog, testCaseId, testTitle } = testResults[i]
+
+      console.log(testResults[i])
+
+      let testRun
+      if (mapping && mapping[testCaseId]) {
+        // using existing test run
+        testRun = mapping[testCaseId]
+      } else if (createTestRuns) {
+        // creating new test run
+        testRun = await qTestClient.createTestRun(testSuiteId, testCaseId)
+      }
+
+      if (testRun) {
+        const idsLog = `testRunId: '${testRun.id}', testCaseId: '${testCaseId}'`
+        const logBody = {
+          ...executionLog,
+          name: testRun.name,
+          automation_content: idsLog,
+          note: `${testTitle} \n${idsLog} \n\r\n ${executionLog.note}`
+        }
+
+        await qTestClient.postLog(testRun.id, logBody)
+      }
+    }
   })
 
   !process.listeners('exit').some(evt => {
@@ -195,7 +200,7 @@ function durationMsg (duration) {
 }
 
 function setupLogger (qTestConfig) {
-  const log = qTestConfig.enableLogs ? (pad = 0, ...args) => {
+  const log = qTestConfig.enableLogs !== false ? (pad = 0, ...args) => {
     console.log((pad ? '|' : '') + (' '.repeat(pad)), ...args)
   } : () => { }
   log.TEST_PAD = 5

@@ -46,7 +46,7 @@ example config file
 }
 ```
 you can pass options one by one or pass path to json like this:  
-`--reporter-options configFile=config/qTestReporter.json"`
+`--reporter-options configFile=config/qTestReporter.json`
 
 ## Environment variables
 
@@ -64,6 +64,7 @@ You can either use existing Test Suite or create new one
 ### Common
 
 `QTEST_BUILD_URL` - url to your build system or any other url. *Optional*
+`QTEST_CREATE_TEST_RUNS` - specify if test runs have to be created in qTest or just update existing ones. *Optional*
 
 ## FAQ
 
