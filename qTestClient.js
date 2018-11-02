@@ -20,22 +20,16 @@ class qTestClient {
 
     // request
     const errorMessage = 'qTestReporter: failed to getSuiteTestRuns.'
-    let res
-    try {
-      res = await request(Object.assign({}, this.options, {
-        method: 'GET',
-        uri: url,
-        qs: {
-          parentId: testSuite,
-          parentType: 'test-suite',
-          page: 1,
-          pageSize: 999
-        }
-      }))
-    } catch (err) {
-      console.error(errorMessage)
-      throw err
-    }
+    const res = await request(Object.assign({}, this.options, {
+      method: 'GET',
+      uri: url,
+      qs: {
+        parentId: testSuite,
+        parentType: 'test-suite',
+        page: 1,
+        pageSize: 999
+      }
+    }))
 
     // parse response body
     let body = parseBody(res, errorMessage)
@@ -104,23 +98,17 @@ class qTestClient {
 
     // request
     const errorMessage = 'qTestReporter: Failed to create test suite.'
-    let res
-    try {
-      res = await request(Object.assign({}, this.options, {
-        method: 'POST',
-        uri: url,
-        json: true,
-        body: { parentId, parentType, name },
-        qs: { parentId, parentType }
-      }))
-    } catch (err) {
-      console.error(errorMessage)
-      throw err
-    }
+    let res = await request(Object.assign({}, this.options, {
+      method: 'POST',
+      uri: url,
+      json: true,
+      body: { parentId, parentType, name },
+      qs: { parentId, parentType }
+    }))
 
     // parse response body
     if (!res.body || !res.body.id) {
-      console.error(errorMessage, '\nERROR:', res.body)
+      console.error('ERROR:', res.body)
       throw new Error(errorMessage)
     }
     return res.body.id

@@ -1,5 +1,6 @@
 const mocha = require('mocha')
 const path = require('path')
+const fs = require('fs')
 const QTestClient = require('./qTestClient')
 
 let testSuiteId = process.env.QTEST_SUITE_ID
@@ -28,12 +29,11 @@ function qTest (runner, options = {}) {
 
   if (!testSuiteId && (!parentId || !testSuiteName || !parentType)) {
     console.warn("qTestReporter: results won't be published.",
-      'Please set either existing testSuiteId or existing testCycleId in combination with testSuiteName to be created.')
+      'Please set either existing QTEST_SUITE_ID or combination of QTEST_PARENT_TYPE, QTEST_PARENT_ID and QTEST_SUITE_NAME to be created.')
+  } else if (!qTestConfig.host || !qTestConfig.bearerToken || !qTestConfig.projectId) {
+    console.error("qTestReporter: results won't be published.",
+      'host, bearerToken, projectId are required options.')
   } else {
-    if (!qTestConfig.host || !qTestConfig.bearerToken || !qTestConfig.projectId) {
-      throw new Error('qTestReporter: host, bearerToken, projectId are required options.')
-    }
-
     qTestClient = new QTestClient(qTestConfig.host, qTestConfig.bearerToken, qTestConfig.projectId)
 
     if (testSuiteId) {
@@ -53,6 +53,11 @@ function qTest (runner, options = {}) {
         console.log('qTestReporter: test suite created', testSuiteId)
       })
     }
+    getSuite.catch(err => {
+      qTestClient = null
+      console.log('qTestReporter: failed to get/create test suite:', testSuiteId || testSuiteName)
+      console.error(err.message)
+    })
   }
 
   const log = setupLogger(qTestConfig)
@@ -224,12 +229,17 @@ function setupLogger (qTestConfig) {
 
 function getQTestConfig (options) {
   const reporterOptions = options.reporterOptions || {}
+  const pathToConfig = path.join(process.cwd(), reporterOptions.configFile)
   let qTestConfig
 
   if (reporterOptions.configFile) {
-    qTestConfig = require(path.join(process.cwd(), reporterOptions.configFile))
+    if (fs.existsSync(pathToConfig)) {
+      qTestConfig = require(pathToConfig)
+    } else {
+      console.error('qTestReporter: config file doesn\'t exist.')
+    }
   } else {
-    qTestConfig = reporterOptions.configOptions || {}
+    qTestConfig = reporterOptions.configOptions
   }
 
   return qTestConfig || {}
