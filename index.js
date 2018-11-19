@@ -65,7 +65,7 @@ function qTest (runner, options = {}) {
 
   let startDate = new Date()
 
-  const testResults = []
+  let testResults = []
 
   runner.on('start', () => {
     startDate = new Date()
@@ -142,6 +142,8 @@ function qTest (runner, options = {}) {
     if (suite.root || !suite.parent.root) return
 
     log(0, 'SUITE END', durationMsg(new Date() - suite.startDate), '\n')
+
+    testResults = [...testResults, ...getNotStartedTests(suite.parent, qTestConfig)]
   })
 
   runner.on('hook', (hook) => {
@@ -243,6 +245,48 @@ function getQTestConfig (options) {
   }
 
   return qTestConfig || {}
+}
+
+/**
+ * get not started tests due to failure of before/beforeEach hook
+ * @param {Mocha.Suite} suite
+ * @param {Object} qTestConfig
+ * @returns {Array}
+ */
+function getNotStartedTests (suite, qTestConfig) {
+  const failedState = qTestConfig.stateFailed || 'FAIL'
+  let tests = []
+
+  if (suite.tests) {
+    for (let i = 0; i < suite.tests.length; i++) {
+      let test = suite.tests[i]
+      if (test.qTest || test.state || test.pending) continue
+
+      const testCaseId = getQTestId(test.title)
+      if (!testCaseId) continue
+
+      test.qTest = {
+        executionLog: {
+          build_url: buildUrl,
+          exe_start_date: new Date().toISOString(),
+          exe_end_date: new Date().toISOString(),
+          status: failedState,
+          note: 'Test was not started and marked as failed due to failure in before/beforeEach hook.'
+        },
+        testCaseId,
+        testTitle: test.title
+      }
+      tests.push(test.qTest)
+    }
+  }
+
+  if (suite.suites) {
+    suite.suites.forEach(suite => {
+      tests = [...tests, ...getNotStartedTests(suite, qTestConfig)]
+    })
+  }
+
+  return tests
 }
 
 /**
