@@ -26,6 +26,9 @@ function qTest (runner, options = {}) {
   let getSuite, qTestClient
   let mapping = []
   const qTestConfig = getQTestConfig(options)
+  const stateFailed = qTestConfig.stateFailed || 'FAIL'
+  const statePassed = qTestConfig.statePassed || 'PASS'
+  const statePending = qTestConfig.statePending || 'PENDING'
 
   if (!testSuiteId && (!parentId || !testSuiteName || !parentType)) {
     console.warn("qTestReporter: results won't be published.",
@@ -98,7 +101,7 @@ function qTest (runner, options = {}) {
     log(1)
 
     if (!qTestClient || !test.qTest) return
-    test.qTest.executionLog.status = qTestConfig.statePassed || 'PASS'
+    test.qTest.executionLog.status = statePassed
   })
 
   runner.on('fail', (test, err) => {
@@ -108,7 +111,7 @@ function qTest (runner, options = {}) {
 
     if (!qTestClient || !test.qTest) return
 
-    test.qTest.executionLog.status = qTestConfig.stateFailed || 'FAIL'
+    test.qTest.executionLog.status = stateFailed
     test.qTest.executionLog.note = err.stack
     // test.qTest.executionLog.attachments: [{
     //   name: 'screenshot.png',
@@ -120,6 +123,9 @@ function qTest (runner, options = {}) {
   runner.on('pending', (test) => {
     log(log.TEST_PAD, '\x1b[2m', `- PENDING: ${test.title}`, '\x1b[0m')
     log(1)
+
+    if (!qTestClient || !test.qTest) return
+    test.qTest.executionLog.status = statePending
   })
 
   runner.on('test end', (test) => {
@@ -143,7 +149,7 @@ function qTest (runner, options = {}) {
 
     log(0, 'SUITE END', durationMsg(new Date() - suite.startDate), '\n')
 
-    testResults = [...testResults, ...getNotStartedTests(suite.parent, qTestConfig)]
+    testResults = [...testResults, ...getNotStartedTests(suite.parent, stateFailed, statePending)]
   })
 
   runner.on('hook', (hook) => {
@@ -161,10 +167,11 @@ function qTest (runner, options = {}) {
 
     if (!qTestClient) return
 
-    const failedState = qTestConfig.stateFailed || 'FAIL'
-
-    // submit failed tests in the end to avoid marking failed tests as passed
-    testResults.sort((a, b) => a.executionLog.status === failedState ? 1 : -1)
+    // submit first passed, then pending and failed tests in the end
+    // to avoid marking skipped or failed tests as passed
+    testResults
+      .sort((a, b) => a.executionLog.status === statePending ? -1 : 1)
+      .sort((a, b) => a.executionLog.status === stateFailed ? 1 : -1)
 
     try {
       await getSuite
@@ -250,17 +257,17 @@ function getQTestConfig (options) {
 /**
  * get not started tests due to failure of before/beforeEach hook
  * @param {Mocha.Suite} suite
- * @param {Object} qTestConfig
+ * @param {string} stateFailed
+ * @param {string} statePending
  * @returns {Array}
  */
-function getNotStartedTests (suite, qTestConfig) {
-  const failedState = qTestConfig.stateFailed || 'FAIL'
+function getNotStartedTests (suite, stateFailed, statePending) {
   let tests = []
 
   if (suite.tests) {
     for (let i = 0; i < suite.tests.length; i++) {
       let test = suite.tests[i]
-      if (test.qTest || test.state || test.pending) continue
+      if (test.qTest || test.state) continue
 
       const testCaseId = getQTestId(test.title)
       if (!testCaseId) continue
@@ -269,12 +276,17 @@ function getNotStartedTests (suite, qTestConfig) {
         executionLog: {
           build_url: buildUrl,
           exe_start_date: new Date().toISOString(),
-          exe_end_date: new Date().toISOString(),
-          status: failedState,
-          note: 'Test was not started and marked as failed due to failure in before/beforeEach hook.'
+          exe_end_date: new Date().toISOString()
         },
         testCaseId,
         testTitle: test.title
+      }
+      if (test.pending) {
+        test.qTest.executionLog.status = statePending
+        test.qTest.executionLog.note = 'Test or its suite is skipped.'
+      } else {
+        test.qTest.executionLog.status = stateFailed
+        test.qTest.executionLog.note = 'Test was not started and marked as failed due to failure in before/beforeEach hook.'
       }
       tests.push(test.qTest)
     }
@@ -282,7 +294,7 @@ function getNotStartedTests (suite, qTestConfig) {
 
   if (suite.suites) {
     suite.suites.forEach(suite => {
-      tests = [...tests, ...getNotStartedTests(suite, qTestConfig)]
+      tests = [...tests, ...getNotStartedTests(suite, stateFailed, statePending)]
     })
   }
 
