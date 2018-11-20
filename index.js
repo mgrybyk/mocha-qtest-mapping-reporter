@@ -131,6 +131,9 @@ function qTest (runner, options = {}) {
   runner.on('test end', (test) => {
     if (!qTestClient || !test.qTest) return
     test.qTest.executionLog.exe_end_date = new Date().toISOString()
+    if (!test.qTest.executionLog.status) {
+      test.qTest.executionLog.status = statePending
+    }
   })
 
   runner.on('suite', function (suite) {
