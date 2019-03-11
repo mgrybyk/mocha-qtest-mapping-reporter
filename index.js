@@ -64,160 +64,181 @@ function qTest (runner, options = {}) {
   }
 
   const log = setupLogger(qTestConfig)
-  mocha.reporters.Base.call(this, runner)
 
   let startDate = new Date()
-
   let testResults = []
+  const events = {
+    onRunnerStart () {
+      startDate = new Date()
+      log(0, '\nTests execution started...\n')
+    },
 
-  runner.on('start', () => {
-    startDate = new Date()
-    log(0, '\nTests execution started...\n')
-  })
+    onTestStart (test) {
+      log(log.TEST_PAD, `> ${test.title}`)
 
-  runner.on('test', async (test) => {
-    log(log.TEST_PAD, `> ${test.title}`)
+      // get qTestCaseId from test title
+      const testCaseId = getQTestId(test.title)
+      if (!testCaseId) {
+        return console.log('qTestReporter: test is not mapped to qTest')
+      }
+      if (!qTestClient) return
 
-    // get qTestCaseId from test title
-    const testCaseId = getQTestId(test.title)
-    if (!testCaseId) {
-      return console.log('qTestReporter: test is not mapped to qTest')
-    }
-    if (!qTestClient) return
+      test.qTest = {
+        executionLog: {
+          build_url: buildUrl,
+          exe_start_date: new Date().toISOString()
+        },
+        testCaseId,
+        testTitle: test.title
+      }
+      testResults.push(test.qTest)
+    },
 
-    test.qTest = {
-      executionLog: {
-        build_url: buildUrl,
-        exe_start_date: new Date().toISOString()
-      },
-      testCaseId,
-      testTitle: test.title
-    }
-    testResults.push(test.qTest)
-  })
+    onTestPass (test) {
+      log(log.TEST_PAD, `\x1b[1m\x1b[32m✓ PASSED`, '\x1b[0m', durationMsg(test.duration))
+      log(1)
 
-  runner.on('pass', (test) => {
-    log(log.TEST_PAD, `\x1b[1m\x1b[32m✓ PASSED`, '\x1b[0m', durationMsg(test.duration))
-    log(1)
+      if (!qTestClient || !test.qTest) return
+      test.qTest.executionLog.status = statePassed
+    },
 
-    if (!qTestClient || !test.qTest) return
-    test.qTest.executionLog.status = statePassed
-  })
+    onTestFail (test, err = {}) {
+      log(log.TEST_PAD, `\x1b[1m\x1b[31m\x1b[1mx FAILED`, '\x1b[0m', durationMsg(test.duration))
+      log(log.TEST_PAD + 2, '\x1b[31m', err.stack, '\x1b[0m')
+      log(1)
 
-  runner.on('fail', (test, err) => {
-    log(log.TEST_PAD, `\x1b[1m\x1b[31m\x1b[1mx FAILED`, '\x1b[0m', durationMsg(test.duration))
-    log(log.TEST_PAD + 2, '\x1b[31m', err.stack, '\x1b[0m')
-    log(1)
+      if (!qTestClient || !test.qTest) return
 
-    if (!qTestClient || !test.qTest) return
+      test.qTest.executionLog.status = stateFailed
+      test.qTest.executionLog.note = err.stack
+      // test.qTest.executionLog.attachments: [{
+      //   name: 'screenshot.png',
+      //   content_type: 'image/png',
+      //   data: 'base64 string of Sample.docx'
+      // }]
+    },
 
-    test.qTest.executionLog.status = stateFailed
-    test.qTest.executionLog.note = err.stack
-    // test.qTest.executionLog.attachments: [{
-    //   name: 'screenshot.png',
-    //   content_type: 'image/png',
-    //   data: 'base64 string of Sample.docx'
-    // }]
-  })
+    onTestSkip (test) {
+      log(log.TEST_PAD, '\x1b[2m', `- PENDING: ${test.title}`, '\x1b[0m')
+      log(1)
 
-  runner.on('pending', (test) => {
-    log(log.TEST_PAD, '\x1b[2m', `- PENDING: ${test.title}`, '\x1b[0m')
-    log(1)
-
-    if (!qTestClient || !test.qTest) return
-    test.qTest.executionLog.status = statePending
-  })
-
-  runner.on('test end', (test) => {
-    if (!qTestClient || !test.qTest) return
-    test.qTest.executionLog.exe_end_date = new Date().toISOString()
-    if (!test.qTest.executionLog.status) {
+      if (!qTestClient || !test.qTest) return
       test.qTest.executionLog.status = statePending
-    }
-  })
+    },
 
-  runner.on('suite', function (suite) {
-    if (suite.root) return
+    onTestEnd (test) {
+      if (!qTestClient || !test.qTest) return
+      test.qTest.executionLog.exe_end_date = new Date().toISOString()
+      if (!test.qTest.executionLog.status) {
+        test.qTest.executionLog.status = statePending
+      }
+    },
 
-    if (suite.parent.root) {
-      suite.startDate = new Date()
-      log(0, suite.title)
-    } else {
-      log(1, suite.title)
-    }
-  })
+    onSuiteStart (suite) {
+      if (suite.root) return
 
-  runner.on('suite end', function (suite) {
-    if (suite.root || !suite.parent.root) return
+      if (suite.parent && suite.parent.root) {
+        suite.startDate = new Date()
+        log(0, suite.title)
+      } else {
+        log(1, suite.title)
+      }
+    },
 
-    log(0, 'SUITE END', durationMsg(new Date() - suite.startDate), '\n')
+    onSuiteEnd (suite) {
+      if (suite.root || !suite.parent || !suite.parent.root) return
 
-    testResults = [...testResults, ...getNotStartedTests(suite.parent, stateFailed, statePending)]
-  })
+      log(0, 'SUITE END', durationMsg(new Date() - suite.startDate), '\n')
 
-  runner.on('hook', (hook) => {
-    if (hook.title.includes('Global')) return
-    log(log.HOOK_PAD, `~ ${hook.title}`)
-  })
+      testResults = [...testResults, ...getNotStartedTests(suite.parent, stateFailed, statePending)]
+    },
 
-  runner.on('hook end', (hook) => {
-    if (hook.title.includes('Global')) return
-    log(log.HOOK_PAD, `~ DONE`, durationMsg(hook.duration))
-  })
+    onHookStart (hook) {
+      if (hook.title.includes('Global')) return
+      log(log.HOOK_PAD, `~ ${hook.title}`)
+    },
 
-  runner.on('end', async () => {
-    log(0, '\nTests execution finished.', durationMsg(new Date() - startDate))
+    onHookEnd (hook) {
+      if (hook.title.includes('Global')) return
+      log(log.HOOK_PAD, `~ DONE`, durationMsg(hook.duration))
+    },
 
-    if (!qTestClient) return
+    async onRunnerEnd () {
+      log(0, '\nTests execution finished.', durationMsg(new Date() - startDate))
 
-    // submit first passed, then pending and failed tests in the end
-    // to avoid marking skipped or failed tests as passed
-    testResults
-      .sort((a, b) => a.executionLog.status === statePending ? -1 : 1)
-      .sort((a, b) => a.executionLog.status === stateFailed ? 1 : -1)
+      if (!qTestClient) return
 
-    try {
-      await getSuite
-    } catch (err) {
-      return console.error('qTestReporter: unable to publish results.')
-    }
+      // submit first passed, then pending and failed tests in the end
+      // to avoid marking skipped or failed tests as passed
+      testResults
+        .sort((a, b) => a.executionLog.status === statePending ? -1 : 1)
+        .sort((a, b) => a.executionLog.status === stateFailed ? 1 : -1)
 
-    console.log('qTestReporter: publishing results...')
-
-    for (let i = 0; i < testResults.length; i++) {
-      const { executionLog, testCaseId, testTitle } = testResults[i]
-
-      let testRun
-      if (mapping[testCaseId]) {
-        // using existing test run
-        testRun = mapping[testCaseId]
-      } else if (createTestRuns) {
-        // creating new test run
-        testRun = await qTestClient.createTestRun(testSuiteId, testCaseId)
-        mapping[testCaseId] = testRun
+      try {
+        await getSuite
+      } catch (err) {
+        return console.error('qTestReporter: unable to publish results.')
       }
 
-      if (testRun) {
-        const idsLog = `testRunId: '${testRun.id}', testCaseId: '${testCaseId}'`
-        const logBody = Object.assign({},
-          executionLog,
-          {
-            name: testRun.name,
-            automation_content: idsLog,
-            note: `${testTitle} \n${idsLog}` + (executionLog.note ? `\n\r\n ${executionLog.note}` : '')
-          })
+      console.log('qTestReporter: publishing results...')
 
-        await qTestClient.postLog(testRun.id, logBody)
+      for (let i = 0; i < testResults.length; i++) {
+        const { executionLog, testCaseId, testTitle } = testResults[i]
+
+        let testRun
+        if (mapping[testCaseId]) {
+          // using existing test run
+          testRun = mapping[testCaseId]
+        } else if (createTestRuns) {
+          // creating new test run
+          testRun = await qTestClient.createTestRun(testSuiteId, testCaseId)
+          mapping[testCaseId] = testRun
+        }
+
+        if (testRun) {
+          const idsLog = `testRunId: '${testRun.id}', testCaseId: '${testCaseId}'`
+          const logBody = Object.assign({},
+            executionLog,
+            {
+              name: testRun.name,
+              automation_content: idsLog,
+              note: `${testTitle} \n${idsLog}` + (executionLog.note ? `\n\r\n ${executionLog.note}` : '')
+            })
+
+          await qTestClient.postLog(testRun.id, logBody)
+        }
       }
-    }
-  })
+    },
 
-  !process.listeners('exit').some(evt => {
-    return evt.name === 'mochaQTestMappingReporter'
-  }) && process.on('exit', function mochaQTestMappingReporter () {
-    printReportUrl && console.log('\nResults submitted to qTest:',
-      `\x1b[4m\nhttps://${qTestConfig.host}/p/${qTestConfig.projectId}/portal/project#tab=testexecution&object=2&id=${testSuiteId}\x1b[0m`)
-  })
+    mochaQTestMappingReporterExit () {
+      printReportUrl && console.log('\nResults submitted to qTest:',
+        `\x1b[4m\nhttps://${qTestConfig.host}/p/${qTestConfig.projectId}/portal/project#tab=testexecution&object=2&id=${testSuiteId}\x1b[0m`)
+    }
+  }
+
+  // if runner is not passed just return events to allow user map them to desired events in their framework
+  if (runner) {
+    runner.on('start', events.onRunnerStart)
+    runner.on('test', events.onTestStart)
+    runner.on('pass', events.onTestPass)
+    runner.on('fail', events.onTestFail)
+    runner.on('pending', events.onTestSkip)
+    runner.on('test end', events.onTestEnd)
+    runner.on('suite', events.onSuiteStart)
+    runner.on('suite end', events.onSuiteEnd)
+    runner.on('hook', events.onHookStart)
+    runner.on('hook end', events.onHookEnd)
+    runner.on('end', events.onRunnerEnd)
+
+    // hack for Cypress to avoid final message duplication
+    if (!process.listeners('exit').some(evt => evt.name === 'mochaQTestMappingReporterExit')) {
+      process.on('exit', mochaQTestMappingReporterExit)
+    }
+
+    mocha.reporters.Base.call(this, runner)
+  }
+
+  return events
 }
 
 function getQTestId (title) {
@@ -240,18 +261,18 @@ function setupLogger (qTestConfig) {
 }
 
 function getQTestConfig (options) {
-  const reporterOptions = options.reporterOptions || {}
-  const pathToConfig = path.join(process.cwd(), reporterOptions.configFile)
+  const configFile = (options.reporterOptions && options.reporterOptions.configFile) || options.configFile
   let qTestConfig
 
-  if (reporterOptions.configFile) {
+  if (configFile) {
+    const pathToConfig = path.join(process.cwd(), configFile)
     if (fs.existsSync(pathToConfig)) {
       qTestConfig = require(pathToConfig)
     } else {
       console.error('qTestReporter: config file doesn\'t exist.')
     }
   } else {
-    qTestConfig = reporterOptions.configOptions
+    qTestConfig = (options.reporterOptions && options.reporterOptions.configOptions) || options
   }
 
   return qTestConfig || {}
@@ -305,6 +326,6 @@ function getNotStartedTests (suite, stateFailed, statePending) {
 }
 
 /**
- * Expose `Teamcity`.
+ * Expose `Mocha qTest Mapping Reporter`.
  */
 module.exports = qTest
