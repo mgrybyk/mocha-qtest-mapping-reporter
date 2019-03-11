@@ -81,16 +81,9 @@ function qTest (runner, options = {}) {
       if (!testCaseId) {
         return console.log('qTestReporter: test is not mapped to qTest')
       }
-      if (!qTestClient) return
+      if (!qTestClient) { return }
 
-      test.qTest = {
-        executionLog: {
-          build_url: buildUrl,
-          exe_start_date: new Date().toISOString()
-        },
-        testCaseId,
-        testTitle: test.title
-      }
+      test.qTest = addTest(test.title, testCaseId, buildUrl)
       testResults.push(test.qTest)
     },
 
@@ -98,7 +91,7 @@ function qTest (runner, options = {}) {
       log(log.TEST_PAD, `\x1b[1m\x1b[32m✓ PASSED`, '\x1b[0m', durationMsg(test.duration))
       log(1)
 
-      if (!qTestClient || !test.qTest) return
+      if (!qTestClient || !test.qTest) { return }
       test.qTest.executionLog.status = statePassed
     },
 
@@ -107,7 +100,7 @@ function qTest (runner, options = {}) {
       log(log.TEST_PAD + 2, '\x1b[31m', err.stack, '\x1b[0m')
       log(1)
 
-      if (!qTestClient || !test.qTest) return
+      if (!qTestClient || !test.qTest) { return }
 
       test.qTest.executionLog.status = stateFailed
       test.qTest.executionLog.note = err.stack
@@ -122,12 +115,20 @@ function qTest (runner, options = {}) {
       log(log.TEST_PAD, '\x1b[2m', `- PENDING: ${test.title}`, '\x1b[0m')
       log(1)
 
-      if (!qTestClient || !test.qTest) return
+      if (!qTestClient) { return }
+
+      if (!test.qTest) {
+        const testCaseId = getQTestId(test.title)
+        if (!testCaseId) { return }
+        test.qTest = addTest(test.title, testCaseId, buildUrl)
+        testResults.push(test.qTest)
+      }
+
       test.qTest.executionLog.status = statePending
     },
 
     onTestEnd (test) {
-      if (!qTestClient || !test.qTest) return
+      if (!qTestClient || !test.qTest) { return }
       test.qTest.executionLog.exe_end_date = new Date().toISOString()
       if (!test.qTest.executionLog.status) {
         test.qTest.executionLog.status = statePending
@@ -135,7 +136,7 @@ function qTest (runner, options = {}) {
     },
 
     onSuiteStart (suite) {
-      if (suite.root) return
+      if (suite.root) { return }
 
       if (suite.parent && suite.parent.root) {
         suite.startDate = new Date()
@@ -146,7 +147,7 @@ function qTest (runner, options = {}) {
     },
 
     onSuiteEnd (suite) {
-      if (suite.root || !suite.parent || !suite.parent.root) return
+      if (suite.root || !suite.parent || !suite.parent.root) { return }
 
       log(0, 'SUITE END', durationMsg(new Date() - suite.startDate), '\n')
 
@@ -154,19 +155,19 @@ function qTest (runner, options = {}) {
     },
 
     onHookStart (hook) {
-      if (hook.title.includes('Global')) return
+      if (hook.title.includes('Global')) { return }
       log(log.HOOK_PAD, `~ ${hook.title}`)
     },
 
     onHookEnd (hook) {
-      if (hook.title.includes('Global')) return
+      if (hook.title.includes('Global')) { return }
       log(log.HOOK_PAD, `~ DONE`, durationMsg(hook.duration))
     },
 
     async onRunnerEnd () {
       log(0, '\nTests execution finished.', durationMsg(new Date() - startDate))
 
-      if (!qTestClient) return
+      if (!qTestClient) { return }
 
       // submit first passed, then pending and failed tests in the end
       // to avoid marking skipped or failed tests as passed
@@ -323,6 +324,17 @@ function getNotStartedTests (suite, stateFailed, statePending) {
   }
 
   return tests
+}
+
+function addTest (testTitle, testCaseId, buildUrl) {
+  return {
+    executionLog: {
+      build_url: buildUrl,
+      exe_start_date: new Date().toISOString()
+    },
+    testCaseId,
+    testTitle
+  }
 }
 
 /**
