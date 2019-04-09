@@ -66,3 +66,4 @@ typings/
 # project
 config/
 test/
+boilerplates/cypress/cypress/reports
