@@ -38,13 +38,13 @@ example config file
 ```
 {
   "host": "...", // your qTest host
-  "bearerToken": "********-****-****-****-************", *// can be found in resources*
-  "projectId": "12345", *// your project id*
-  "statePassed": "PASS", *// can be found in automation settings -> integration*
-  "stateFailed": "FAIL", *// can be found in automation settings -> integration*
-  "enableLogs": false, *// disables console logging. Default value: true.*
-  "hideWarning": true, *// hides "results won't be published" message. Default value: false.*
-  "hideResultUrl": true *// skip printing out of suite url in the end. Default value: false.*
+  "bearerToken": "********-****-****-****-************", // can be found in resources
+  "projectId": "12345", // your project id
+  "statePassed": "PASS", // can be found in automation settings -> integration*\
+  "stateFailed": "FAIL", // can be found in automation settings -> integration*
+  "enableLogs": false, // disables console logging. Default value: true.*
+  "hideWarning": true, // hides "results won't be published" message. Default value: false.
+  "hideResultUrl": true // skip printing out of suite url in the end. Default value: false.
 }
 ```
 you can pass options one by one or pass path to json like this:  
@@ -65,7 +65,7 @@ You can either use existing Test Suite or create new one
 
 ### Common
 
-`QTEST_BUILD_URL` - url to your build system or any other url. *Optional*
+`QTEST_BUILD_URL` - url to your build system or any other url. *Optional*  
 `QTEST_CREATE_TEST_RUNS` - specify if test runs have to be created in qTest or just update existing ones. *Optional*
 
 ## FAQ
@@ -78,7 +78,12 @@ You can either use existing Test Suite or create new one
 You may specify either QTEST_SUITE_ID or combination of QTEST_PARENT_TYPE, QTEST_PARENT_ID, QTEST_SUITE_NAME
 
 **Q**: Reporter completes successfully but (some) results are missing  
-**A**: some test runners are not waiting for reporter to publish results, add some one more test in the very end that waits for 5-10 seconds. Also make sure that your test cases are approved, use has sufficient privileges, etc.
+**A**: some test runners (like Cypress) are not waiting for reporter to publish results.  
+Add one more test in the very end that waits for 5-10 seconds. Also make sure that your test cases are approved, have sufficient privileges, etc.
+
+## Boilerplate projects
+
+Cypress https://github.com/mgrybyk/mocha-qtest-mapping-reporter/tree/master/boilerplates/cypress
 
 
 ## TODOs / known issues
