@@ -1,20 +1,15 @@
 {
-  "name": "mocha-qtest-mapping-reporter",
+  "name": "@mocha-qtest-mapping-reporter/cypress",
   "version": "1.1.1",
-  "description": "Map your automated test to qTest Test Case with tag",
-  "main": "index.js",
+  "description": "mocha-qtest-mapping-reporter Cypress boilerplate",
+  "main": "",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "cypress run"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mgrybyk/mocha-qtest-mapping-reporter.git"
   },
-  "keywords": [
-    "mocha",
-    "qtest",
-    "reporter"
-  ],
   "author": "mgrybyk",
   "license": "MIT",
   "bugs": {
@@ -22,8 +17,6 @@
   },
   "homepage": "https://github.com/mgrybyk/mocha-qtest-mapping-reporter#readme",
   "dependencies": {
-    "mocha": "*",
-    "request": "^2.88.0",
-    "request-promise-native": "^1.0.7"
+    "cypress": "^3.2.0"
   }
 }

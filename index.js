@@ -22,7 +22,7 @@ let printReportUrl = false
  * @api public
  */
 
-function qTest (runner, options = {}) {
+function qTest(runner, options = {}) {
   let getSuite, qTestClient
   let mapping = []
   const qTestConfig = getQTestConfig(options)
@@ -31,8 +31,10 @@ function qTest (runner, options = {}) {
   const statePending = qTestConfig.statePending || 'PENDING'
 
   if (!testSuiteId && (!parentId || !testSuiteName || !parentType)) {
-    console.warn("qTestReporter: results won't be published.",
-      'Please set either existing QTEST_SUITE_ID or combination of QTEST_PARENT_TYPE, QTEST_PARENT_ID and QTEST_SUITE_NAME to be created.')
+    if (!qTestConfig.hideWarning) {
+      console.warn("qTestReporter: results won't be published.",
+        'Please set either existing QTEST_SUITE_ID or combination of QTEST_PARENT_TYPE, QTEST_PARENT_ID and QTEST_SUITE_NAME to be created.')
+    }
   } else if (!qTestConfig.host || !qTestConfig.bearerToken || !qTestConfig.projectId) {
     console.error("qTestReporter: results won't be published.",
       'host, bearerToken, projectId are required options.')
@@ -68,12 +70,12 @@ function qTest (runner, options = {}) {
   let startDate = new Date()
   let testResults = []
   const events = {
-    onRunnerStart () {
+    onRunnerStart() {
       startDate = new Date()
       log(0, '\nTests execution started...\n')
     },
 
-    onTestStart (test) {
+    onTestStart(test) {
       log(log.TEST_PAD, `> ${test.title}`)
 
       // get qTestCaseId from test title
@@ -87,7 +89,7 @@ function qTest (runner, options = {}) {
       testResults.push(test.qTest)
     },
 
-    onTestPass (test) {
+    onTestPass(test) {
       log(log.TEST_PAD, `\x1b[1m\x1b[32m✓ PASSED`, '\x1b[0m', durationMsg(test.duration))
       log(1)
 
@@ -95,7 +97,7 @@ function qTest (runner, options = {}) {
       test.qTest.executionLog.status = statePassed
     },
 
-    onTestFail (test, err = {}) {
+    onTestFail(test, err = {}) {
       log(log.TEST_PAD, `\x1b[1m\x1b[31m\x1b[1mx FAILED`, '\x1b[0m', durationMsg(test.duration))
       log(log.TEST_PAD + 2, '\x1b[31m', err.stack, '\x1b[0m')
       log(1)
@@ -111,7 +113,7 @@ function qTest (runner, options = {}) {
       // }]
     },
 
-    onTestSkip (test) {
+    onTestSkip(test) {
       log(log.TEST_PAD, '\x1b[2m', `- PENDING: ${test.title}`, '\x1b[0m')
       log(1)
 
@@ -127,7 +129,7 @@ function qTest (runner, options = {}) {
       test.qTest.executionLog.status = statePending
     },
 
-    onTestEnd (test) {
+    onTestEnd(test) {
       if (!qTestClient || !test.qTest) { return }
       test.qTest.executionLog.exe_end_date = new Date().toISOString()
       if (!test.qTest.executionLog.status) {
@@ -135,7 +137,7 @@ function qTest (runner, options = {}) {
       }
     },
 
-    onSuiteStart (suite) {
+    onSuiteStart(suite) {
       if (suite.root) { return }
 
       if (suite.parent && suite.parent.root) {
@@ -146,7 +148,7 @@ function qTest (runner, options = {}) {
       }
     },
 
-    onSuiteEnd (suite) {
+    onSuiteEnd(suite) {
       if (suite.root || !suite.parent || !suite.parent.root) { return }
 
       log(0, 'SUITE END', durationMsg(new Date() - suite.startDate), '\n')
@@ -154,17 +156,17 @@ function qTest (runner, options = {}) {
       testResults = [...testResults, ...getNotStartedTests(suite.parent, stateFailed, statePending)]
     },
 
-    onHookStart (hook) {
+    onHookStart(hook) {
       if (hook.title.includes('Global')) { return }
       log(log.HOOK_PAD, `~ ${hook.title}`)
     },
 
-    onHookEnd (hook) {
+    onHookEnd(hook) {
       if (hook.title.includes('Global')) { return }
       log(log.HOOK_PAD, `~ DONE`, durationMsg(hook.duration))
     },
 
-    async onRunnerEnd () {
+    async onRunnerEnd() {
       log(0, '\nTests execution finished.', durationMsg(new Date() - startDate))
 
       if (!qTestClient) { return }
@@ -211,8 +213,8 @@ function qTest (runner, options = {}) {
       }
     },
 
-    mochaQTestMappingReporterExit () {
-      printReportUrl && console.log('\nResults submitted to qTest:',
+    mochaQTestMappingReporterExit() {
+      !qTestConfig.hideResultUrl && printReportUrl && console.log('\nResults submitted to qTest:',
         `\x1b[4m\nhttps://${qTestConfig.host}/p/${qTestConfig.projectId}/portal/project#tab=testexecution&object=2&id=${testSuiteId}\x1b[0m`)
     }
   }
@@ -233,7 +235,7 @@ function qTest (runner, options = {}) {
 
     // hack for Cypress to avoid final message duplication
     if (!process.listeners('exit').some(evt => evt.name === 'mochaQTestMappingReporterExit')) {
-      process.on('exit', mochaQTestMappingReporterExit)
+      process.on('exit', events.mochaQTestMappingReporterExit)
     }
 
     mocha.reporters.Base.call(this, runner)
@@ -242,16 +244,16 @@ function qTest (runner, options = {}) {
   return events
 }
 
-function getQTestId (title) {
+function getQTestId(title) {
   const match = title.match(/@qTest\[(.*?)\]/)
   return match ? match[1] : null
 }
 
-function durationMsg (duration = '?') {
+function durationMsg(duration = '?') {
   return `(${duration}ms)`
 }
 
-function setupLogger (qTestConfig) {
+function setupLogger(qTestConfig) {
   const log = qTestConfig.enableLogs !== false ? (pad = 0, ...args) => {
     console.log((pad ? '|' : '') + (' '.repeat(pad)), ...args)
   } : () => { }
@@ -261,7 +263,7 @@ function setupLogger (qTestConfig) {
   return log
 }
 
-function getQTestConfig (options) {
+function getQTestConfig(options) {
   const configFile = (options.reporterOptions && options.reporterOptions.configFile) || options.configFile
   let qTestConfig
 
@@ -286,7 +288,7 @@ function getQTestConfig (options) {
  * @param {string} statePending
  * @returns {Array}
  */
-function getNotStartedTests (suite, stateFailed, statePending) {
+function getNotStartedTests(suite, stateFailed, statePending) {
   let tests = []
 
   if (suite.tests) {
@@ -326,7 +328,7 @@ function getNotStartedTests (suite, stateFailed, statePending) {
   return tests
 }
 
-function addTest (testTitle, testCaseId, buildUrl) {
+function addTest(testTitle, testCaseId, buildUrl) {
   return {
     executionLog: {
       build_url: buildUrl,

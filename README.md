@@ -42,7 +42,9 @@ example config file
   "projectId": "12345", *// your project id*
   "statePassed": "PASS", *// can be found in automation settings -> integration*
   "stateFailed": "FAIL", *// can be found in automation settings -> integration*
-  "enableLogs": false *// disables console logging. Default value: true.*
+  "enableLogs": false, *// disables console logging. Default value: true.*
+  "hideWarning": true, *// hides "results won't be published" message. Default value: false.*
+  "hideResultUrl": true *// skip printing out of suite url in the end. Default value: false.*
 }
 ```
 you can pass options one by one or pass path to json like this:  
