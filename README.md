@@ -79,7 +79,7 @@ You may specify either QTEST_SUITE_ID or combination of QTEST_PARENT_TYPE, QTEST
 
 **Q**: Reporter completes successfully but (some) results are missing  
 **A**: some test runners (like Cypress) are not waiting for reporter to publish results.  
-Add one more test in the very end that waits for 5-10 seconds. Also make sure that your test cases are approved, have sufficient privileges, etc.
+Add one more test in the very end that waits for 5-10 seconds. Also make sure that: your test cases are approved, user has sufficient privileges, test statuses have proper mapping (in automation settings), etc.
 
 ## Boilerplate projects
 
