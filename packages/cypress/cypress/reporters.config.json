@@ -1,0 +1,9 @@
+{
+  "reporterEnabled": "mocha-junit-reporter, mocha-qtest-mapping-reporter",
+  "mochaJunitReporterReporterOptions": {
+    "mochaFile": "cypress/reports/junit/[hash].xml"
+  },
+  "mochaQtestMappingReporterReporterOptions": {
+    "configFile": "cypress/qTestReporter.json"
+  }
+}

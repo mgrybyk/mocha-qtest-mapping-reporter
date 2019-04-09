@@ -1,0 +1,7 @@
+{
+  "video": false,
+  "reporter": "mocha-multi-reporters",
+  "reporterOptions": {
+    "configFile": "cypress/reporters.config.json"
+  }
+}

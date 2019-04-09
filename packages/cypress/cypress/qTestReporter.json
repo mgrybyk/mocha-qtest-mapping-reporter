@@ -1,0 +1,11 @@
+{
+  "host": "MY.qtestnet.com",
+  "bearerToken": "12345678-abcd-abcd-abcd-123456789abc",
+  "projectId": "12345",
+  "statePassed": "PASS",
+  "stateFailed": "FAIL",
+  "statePending": "PENDING",
+  "enableLogs": true,
+  "hideWarning": false,
+  "hideResultUrl": false
+}

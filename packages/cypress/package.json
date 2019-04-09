@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/mgrybyk/mocha-qtest-mapping-reporter#readme",
   "dependencies": {
-    "cypress": "^3.2.0"
+    "cypress": "^3.2.0",
+    "mocha-multi-reporters": "^1.1.7",
+    "mocha-qtest-mapping-reporter": "^1.1.2"
   }
 }

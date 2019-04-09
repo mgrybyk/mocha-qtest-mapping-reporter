@@ -75,7 +75,11 @@ You can either use existing Test Suite or create new one
 
 **Q**: What QTEST_SUITE_ID value should I pass if I want it to be created automatically?  
 **A**: Don't pass any value.  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;You may specify either QTEST_SUITE_ID or combination of QTEST_PARENT_TYPE, QTEST_PARENT_ID, QTEST_SUITE_NAME
+You may specify either QTEST_SUITE_ID or combination of QTEST_PARENT_TYPE, QTEST_PARENT_ID, QTEST_SUITE_NAME
+
+**Q**: Reporter completes successfully but (some) results are missing  
+**A**: some test runners are not waiting for reporter to publish results, add some one more test in the very end that waits for 5-10 seconds. Also make sure that your test cases are approved, use has sufficient privileges, etc.
+
 
 ## TODOs / known issues
 1. TODO: attachments support;
