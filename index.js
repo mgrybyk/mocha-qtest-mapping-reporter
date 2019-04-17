@@ -214,7 +214,7 @@ function qTest(runner, options = {}) {
     },
 
     mochaQTestMappingReporterExit() {
-      !qTestConfig.hideResultUrl && printReportUrl && console.log('\nResults submitted to qTest:',
+      printReportUrl && console.log('\nResults submitted to qTest:',
         `\x1b[4m\nhttps://${qTestConfig.host}/p/${qTestConfig.projectId}/portal/project#tab=testexecution&object=2&id=${testSuiteId}\x1b[0m`)
     }
   }
@@ -234,7 +234,7 @@ function qTest(runner, options = {}) {
     runner.on('end', events.onRunnerEnd)
 
     // hack for Cypress to avoid final message duplication
-    if (!process.listeners('exit').some(evt => evt.name === 'mochaQTestMappingReporterExit')) {
+    if (!qTestConfig.hideResultUrl && !process.listeners('exit').some(evt => evt.name === 'mochaQTestMappingReporterExit')) {
       process.on('exit', events.mochaQTestMappingReporterExit)
     }
 
