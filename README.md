@@ -45,6 +45,8 @@ example config file
   "enableLogs": false, // disables console logging. Default value: true.*
   "hideWarning": true, // hides "results won't be published" message. Default value: false.
   "hideResultUrl": true // skip printing out of suite url in the end. Default value: false.
+  "attachmentFolder": "cypress/screenshots" // path to attachments. Default value: report/screenshot
+  "attachmentType": "image/png" // media type of attachments. More info https://www.iana.org/assignments/media-types/media-types.xhtml
 }
 ```
 you can pass options one by one or pass path to json like this:  
@@ -87,5 +89,5 @@ Cypress https://github.com/mgrybyk/mocha-qtest-mapping-reporter/tree/master/boil
 
 
 ## TODOs / known issues
-1. TODO: attachments support;
+1. Mark test steps as executed;
 2. Any questions/suggestions are welcomed!

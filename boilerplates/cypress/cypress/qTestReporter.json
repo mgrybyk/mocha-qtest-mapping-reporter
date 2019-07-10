@@ -7,5 +7,7 @@
   "statePending": "PENDING",
   "enableLogs": true,
   "hideWarning": false,
-  "hideResultUrl": false
+  "hideResultUrl": false,
+  "attachmentFolder": "cypress/screenshots",
+  "attachmentType": "image/png"
 }
