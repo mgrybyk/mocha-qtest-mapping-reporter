@@ -45,6 +45,7 @@ example config file
   "enableLogs": false, // disables console logging. Default value: true.*
   "hideWarning": true, // hides "results won't be published" message. Default value: false.
   "hideResultUrl": true // skip printing out of suite url in the end. Default value: false.
+  "attachmentTrigger": "ALL" // send attachments depending on test state. Default value === value of stateFailed. Special option - "ALL"
   "attachmentFolder": "cypress/screenshots" // path to attachments. Default value: report/screenshot
   "attachmentType": "image/png" // media type of attachments. More info https://www.iana.org/assignments/media-types/media-types.xhtml
 }
@@ -61,6 +62,7 @@ You can either use existing Test Suite or create new one
 `QTEST_SUITE_ID` - testSuiteId. **Required**
 
 ### Creating Test Suite
+
 `QTEST_PARENT_TYPE` - one of *root / release / test-cycle / test-suite*. **Required**  
 `QTEST_PARENT_ID` - parent id. Set to 0 if parent is root. **Required**  
 `QTEST_SUITE_NAME` - Test Suite name. **Required**
@@ -69,6 +71,14 @@ You can either use existing Test Suite or create new one
 
 `QTEST_BUILD_URL` - url to your build system or any other url. *Optional*  
 `QTEST_CREATE_TEST_RUNS` - specify if test runs have to be created in qTest or just update existing ones. *Optional*
+
+### Attachments
+
+Reporter can attach files to a test runs.
+Default trigger to send attachment - failed test.
+By default it send files with full test.title included in filename from folder *report/screenshot* (+ search in subfolders) with media type [image/png].
+
+Attachment folder / media type / trigger can be configured in config file.
 
 ## FAQ
 

@@ -32,6 +32,7 @@ function qTest(runner, options = {}) {
   
   const attachmentFolder = qTestConfig.attachmentFolder || 'report/screenshot'
   const attachmentType = qTestConfig.attachmentType || 'image/png'
+  const attachmentTrigger = qTestConfig.attachmentTrigger || stateFailed
 
   if (!testSuiteId && (!parentId || !testSuiteName || !parentType)) {
     if (!qTestConfig.hideWarning) {
@@ -109,19 +110,6 @@ function qTest(runner, options = {}) {
 
       test.qTest.executionLog.status = stateFailed
       test.qTest.executionLog.note = err.stack
-      
-      const attachmentsFolder = path.join(process.cwd(), `${attachmentFolder}`)
-
-      if (fs.existsSync(attachmentsFolder)) {
-        const attachmentPath = getAttachmentPath(path.join(process.cwd(), `${attachmentFolder}`), getQTestId(test.title))
-         if (attachmentPath) {
-          test.qTest.executionLog.file = fs.readFileSync(attachmentPath).toString('base64')
-         } else {
-          log(log.TEST_PAD, "Attachments with qTestId in name not found")
-         }
-      } else {
-        log(log.TEST_PAD, "Attachments path not found")
-      }
     },
 
     onTestSkip(test) {
@@ -145,6 +133,10 @@ function qTest(runner, options = {}) {
       test.qTest.executionLog.exe_end_date = new Date().toISOString()
       if (!test.qTest.executionLog.status) {
         test.qTest.executionLog.status = statePending
+      }
+
+      if ([test.qTest.executionLog.status, 'ALL'].some(tr => attachmentTrigger === tr)) {
+        test.qTest.executionLog.file = getAttachment(attachmentFolder, test.title)
       }
     },
 
@@ -352,9 +344,20 @@ function addTest(testTitle, testCaseId, buildUrl) {
   }
 }
 
-function getAttachmentPath(attachmentPath, testCaseId) {
-  const files = getFiles(attachmentPath)
-  return files.find(filename => filename.includes(testCaseId))
+function getAttachment(attachmentFolder, testTitle) {
+  const attachmentsFolder = path.join(process.cwd(), `${attachmentFolder}`)
+
+  if (fs.existsSync(attachmentsFolder)) {
+    const attachmentPath = getFiles(attachmentsFolder).find(filename => filename.includes(testTitle))
+      if (attachmentPath) {
+        return fs.readFileSync(attachmentPath).toString('base64')
+      } else {
+        console.log("Attachments with qTestId in name not found")
+      }
+  } else {
+    console.log("Attachments path not found")
+  }
+  return undefined
 }
 
 function getFiles (folderPath) {
@@ -363,7 +366,7 @@ function getFiles (folderPath) {
     const res = path.resolve(folderPath, dirent)
     return fs.existsSync(res) && fs.lstatSync(res).isDirectory() ? getFiles(res) : res
   })
-  return Array.prototype.concat(...files)
+  return [].concat(...files)
 }
 
 /**
