@@ -127,6 +127,7 @@ function qTest(runner, options = {}) {
       }
 
       test.qTest.executionLog.status = statePending
+      test.qTest.executionLog.exe_end_date = new Date().toISOString()
     },
 
     onTestEnd(test) {

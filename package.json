@@ -1,6 +1,6 @@
 {
   "name": "mocha-qtest-mapping-reporter",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Map your automated test to qTest Test Case with tag",
   "main": "index.js",
   "scripts": {
@@ -26,6 +26,6 @@
     "request-promise-native": "^1.0.7"
   },
   "devDependencies": {
-    "mocha": "^6.1.2"
+    "mocha": "^6.1.4"
   }
 }
