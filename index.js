@@ -29,6 +29,10 @@ function qTest(runner, options = {}) {
   const stateFailed = qTestConfig.stateFailed || 'FAIL'
   const statePassed = qTestConfig.statePassed || 'PASS'
   const statePending = qTestConfig.statePending || 'PENDING'
+  
+  const attachmentFolder = qTestConfig.attachmentFolder || 'report/screenshot'
+  const attachmentType = qTestConfig.attachmentType || 'image/png'
+  const attachmentTrigger = qTestConfig.attachmentTrigger || stateFailed
 
   if (!testSuiteId && (!parentId || !testSuiteName || !parentType)) {
     if (!qTestConfig.hideWarning) {
@@ -106,11 +110,6 @@ function qTest(runner, options = {}) {
 
       test.qTest.executionLog.status = stateFailed
       test.qTest.executionLog.note = err.stack
-      // test.qTest.executionLog.attachments: [{
-      //   name: 'screenshot.png',
-      //   content_type: 'image/png',
-      //   data: 'base64 string of Sample.docx'
-      // }]
     },
 
     onTestSkip(test) {
@@ -135,6 +134,10 @@ function qTest(runner, options = {}) {
       test.qTest.executionLog.exe_end_date = new Date().toISOString()
       if (!test.qTest.executionLog.status) {
         test.qTest.executionLog.status = statePending
+      }
+
+      if ([test.qTest.executionLog.status, 'ALL'].some(tr => attachmentTrigger === tr)) {
+        test.qTest.executionLog.file = getAttachment(attachmentFolder, test.title)
       }
     },
 
@@ -206,7 +209,9 @@ function qTest(runner, options = {}) {
             {
               name: testRun.name,
               automation_content: idsLog,
-              note: `${testTitle} \n${idsLog}` + (executionLog.note ? `\n\r\n ${executionLog.note}` : '')
+              note: `${testTitle} \n${idsLog}` + (executionLog.note ? `\n\r\n ${executionLog.note}` : ''),
+              attachments: executionLog.file ?  [
+                { name: `${testTitle}`, content_type: attachmentType, data: executionLog.file, author: {} } ] : undefined
             })
 
           await qTestClient.postLog(testRun.id, logBody)
@@ -338,6 +343,31 @@ function addTest(testTitle, testCaseId, buildUrl) {
     testCaseId,
     testTitle
   }
+}
+
+function getAttachment(attachmentFolder, testTitle) {
+  const attachmentsFolder = path.join(process.cwd(), `${attachmentFolder}`)
+
+  if (fs.existsSync(attachmentsFolder)) {
+    const attachmentPath = getFiles(attachmentsFolder).find(filename => filename.includes(testTitle))
+      if (attachmentPath) {
+        return fs.readFileSync(attachmentPath).toString('base64')
+      } else {
+        console.log("Attachments with qTestId in name not found")
+      }
+  } else {
+    console.log("Attachments path not found")
+  }
+  return undefined
+}
+
+function getFiles (folderPath) {
+  const dirents = fs.readdirSync(folderPath)
+  const files = dirents.map((dirent) => {
+    const res = path.resolve(folderPath, dirent)
+    return fs.existsSync(res) && fs.lstatSync(res).isDirectory() ? getFiles(res) : res
+  })
+  return [].concat(...files)
 }
 
 /**
